@@ -58,7 +58,7 @@ def process_docs(pdf_docs):
     try:
         raw_text = get_pdf_text(pdf_docs)
         text_chunks = get_text_chunks(raw_text)
-        embeddings = GoogleGenerativeAIEmbeddings()
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
         vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
         st.session_state.conversation = get_conversation_chain(vectorstore)
         st.session_state.processComplete = True
