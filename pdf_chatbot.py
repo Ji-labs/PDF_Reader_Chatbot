@@ -10,7 +10,7 @@ from langchain.prompts import PromptTemplate
 import os
 
 # Configure API key
-os.environ["GOOGLE_API_KEY"] = "YOUR_API_KEY"
+os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
 
 # Set up Streamlit UI
 st.set_page_config(page_title="Chat with PDF", page_icon="📚")
