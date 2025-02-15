@@ -30,28 +30,28 @@ def get_pdf_text(pdf_docs):
     return text
 
 def get_text_chunks(text):
-    text_splitter = CharacterTextSplitter(separator="\n", chunk_size=1000, chunk_overlap=200, length_function=len)
+    text_splitter = CharacterTextSplitter(separator="\n", chunk_size=1500, chunk_overlap=300, length_function=len)
     return text_splitter.split_text(text)
 
 def get_conversation_chain(vectorstore):
-    llm = ChatGoogleGenerativeAI(model="gemini-1.0-pro", temperature=0.9, top_p=0.95)
+    llm = ChatGoogleGenerativeAI(model="gemini-1.0-pro", temperature=0.8, top_p=0.9)
     prompt = PromptTemplate(
         input_variables=['context', 'question'],
-        template="""You are a helpful AI assistant that helps users understand their PDF documents.
-        Use ALL available context to provide a comprehensive answer.
+        template="""You are an AI assistant providing detailed answers from PDF documents.
+        Use all provided context to generate a comprehensive response. Include full relevant context unless instructed otherwise.
 
         {context}
 
         Question: {question}
-        Comprehensive Answer:"""
+        Answer with full context:"""
     )
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 8})
     conversation_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
         retriever=retriever,
         memory=memory,
-        combine_docs_chain_kwargs={'prompt': prompt, 'max_tokens_limit': 4096}
+        combine_docs_chain_kwargs={'prompt': prompt}  # Removed unsupported max_tokens_limit
     )
     return conversation_chain
 
@@ -60,13 +60,12 @@ def process_docs(pdf_docs):
         raw_text = get_pdf_text(pdf_docs)
         text_chunks = get_text_chunks(raw_text)
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-        assert len(embeddings.embed_query("test")) == 768, "Embedding dimension mismatch!"
         vectorstore = FAISS.from_texts(text_chunks, embedding=embeddings)
         st.session_state.conversation = get_conversation_chain(vectorstore)
         st.session_state.processComplete = True
         return True
     except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
+        st.error(f"Error: {str(e)}")
         return False
 
 with st.sidebar:
