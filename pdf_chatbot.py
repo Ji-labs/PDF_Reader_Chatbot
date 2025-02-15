@@ -89,8 +89,8 @@ if st.session_state.processComplete:
         try:
             with st.spinner("Thinking..."):
                 response = st.session_state.conversation({"question": user_question})
-                st.session_state.chat_history.append(("Question", user_question))
-                st.session_state.chat_history.append(("AI", response["answer"]))
+                st.session_state.chat_history.append(("You", user_question))
+                st.session_state.chat_history.append(("Bot", response["answer"]))
         except Exception as e:
             st.error(f"Error: {str(e)}")
 
