@@ -1,15 +1,15 @@
 import streamlit as st
 from PyPDF2 import PdfReader
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.chat_models import ChatOpenAI
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain.embeddings import OpenAIEmbeddings
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 import os
 
-os.environ["GOOGLE_API_KEY"] = st.secrets.get("GOOGLE_API_KEY", "")
+os.environ["OPENAI_API_KEY"] = st.secrets.get("OPENAI_API_KEY", "")
 
 st.set_page_config(page_title="Chat with PDF", page_icon="📚")
 st.title("Chat with your PDF 📚")
@@ -34,22 +34,14 @@ def get_pdf_text(pdf_docs):
 
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(separator="\n", chunk_size=1500, chunk_overlap=300, length_function=len)
-    chunks = text_splitter.split_text(text)
-    return chunks
+    return text_splitter.split_text(text)
 
 def get_conversation_chain(vectorstore):
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0.5)
-    template = """You are an expert PDF assistant. Use the following context to answer questions accurately.
-    Provide clear, concise responses. If unsure, say so.
-
-    {context}
-    Question: {question}
-    Answer:
-    """
+    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0.5)
+    template = """You are an expert PDF assistant. Use the following context to answer questions accurately.\nProvide clear, concise responses. If unsure, say so.\n\n{context}\nQuestion: {question}\nAnswer:"""
     prompt = PromptTemplate(input_variables=['context', 'question'], template=template)
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
-    conversation_chain = ConversationalRetrievalChain.from_llm(llm=llm, retriever=vectorstore.as_retriever(), memory=memory, combine_docs_chain_kwargs={'prompt': prompt})
-    return conversation_chain
+    return ConversationalRetrievalChain.from_llm(llm=llm, retriever=vectorstore.as_retriever(), memory=memory, combine_docs_chain_kwargs={'prompt': prompt})
 
 def process_docs(pdf_docs):
     if not pdf_docs:
@@ -58,7 +50,7 @@ def process_docs(pdf_docs):
     try:
         raw_text = get_pdf_text(pdf_docs)
         text_chunks = get_text_chunks(raw_text)
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        embeddings = OpenAIEmbeddings()
         vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
         st.session_state.conversation = get_conversation_chain(vectorstore)
         st.session_state.processComplete = True
