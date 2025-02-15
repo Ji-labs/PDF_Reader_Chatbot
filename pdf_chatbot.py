@@ -9,7 +9,7 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 import os
 
-os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+os.environ["GOOGLE_API_KEY"] = st.secrets.get("GOOGLE_API_KEY", "")
 
 st.set_page_config(page_title="Chat with PDF", page_icon="📚")
 st.title("Chat with your PDF 📚")
@@ -24,13 +24,20 @@ if "processComplete" not in st.session_state:
 def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
-        pdf_reader = PdfReader(pdf)
-        for page in pdf_reader.pages:
-            page_text = page.extract_text() or ""
-            text += page_text
+        try:
+            pdf_reader = PdfReader(pdf)
+            for page in pdf_reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text
+        except Exception as e:
+            st.warning(f"Error reading PDF: {e}")
     return text
 
 def get_text_chunks(text):
+    if not text.strip():
+        st.error("No text extracted from PDFs.")
+        return []
     text_splitter = CharacterTextSplitter(separator="\n", chunk_size=1000, chunk_overlap=200, length_function=len)
     return text_splitter.split_text(text)
 
@@ -39,7 +46,7 @@ def get_conversation_chain(vectorstore):
     prompt = PromptTemplate(
         input_variables=['context', 'question'],
         template="""You are an AI assistant providing detailed answers from uploaded PDF documents.
-        Use all provided context to generate accurate responses.
+        Use all provided context to generate accurate responses. If no documents are found, indicate it clearly.
 
         {context}
 
@@ -48,20 +55,30 @@ def get_conversation_chain(vectorstore):
     )
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
     retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
-    conversation_chain = ConversationalRetrievalChain.from_llm(llm=llm, retriever=retriever, memory=memory, combine_docs_chain_kwargs={'prompt': prompt})
+    conversation_chain = ConversationalRetrievalChain.from_llm(
+        llm=llm,
+        retriever=retriever,
+        memory=memory,
+        combine_docs_chain_kwargs={'prompt': prompt}
+    )
     return conversation_chain
 
 def process_docs(pdf_docs):
+    if not pdf_docs:
+        st.error("No PDFs uploaded. Please upload files to proceed.")
+        return False
     try:
         raw_text = get_pdf_text(pdf_docs)
         text_chunks = get_text_chunks(raw_text)
+        if not text_chunks:
+            return False
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
         vectorstore = FAISS.from_texts(text_chunks, embedding=embeddings)
         st.session_state.conversation = get_conversation_chain(vectorstore)
         st.session_state.processComplete = True
         return True
     except Exception as e:
-        st.error(f"Error: {str(e)}")
+        st.error(f"Error during processing: {str(e)}")
         return False
 
 with st.sidebar:
@@ -78,8 +95,10 @@ if st.session_state.processComplete:
         try:
             with st.spinner("Thinking..."):
                 response = st.session_state.conversation({"question": user_question})
+                if "source_documents" not in response:
+                    st.warning("No documents found for this query.")
                 st.session_state.chat_history.append(("You", user_question))
-                st.session_state.chat_history.append(("Bot", response["answer"]))
+                st.session_state.chat_history.append(("Bot", response.get("answer", "No answer available.")))
         except Exception as e:
             st.error(f"Error: {str(e)}")
     for role, message in st.session_state.chat_history:
