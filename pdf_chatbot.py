@@ -1,3 +1,4 @@
+
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -9,14 +10,14 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 import os
 
-# Configure API key
-os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+# Set Google API key from secrets
+os.environ["GOOGLE_API_KEY"] = st.secrets.get("GOOGLE_API_KEY", "")
 
-# Set up Streamlit UI
+# Page configuration
 st.set_page_config(page_title="Chat with PDF", page_icon="📚")
 st.title("Chat with your PDF 📚")
 
-# Initialize session state
+# Initialize session state variables
 if "conversation" not in st.session_state:
     st.session_state.conversation = None
 if "chat_history" not in st.session_state:
@@ -24,16 +25,17 @@ if "chat_history" not in st.session_state:
 if "processComplete" not in st.session_state:
     st.session_state.processComplete = None
 
-# Function to extract text from PDFs
 def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
-        pdf_reader = PdfReader(pdf)
-        for page in pdf_reader.pages:
-            text += page.extract_text()
+        try:
+            pdf_reader = PdfReader(pdf)
+            for page in pdf_reader.pages:
+                text += page.extract_text()
+        except Exception as e:
+            st.warning(f"Error reading PDF: {e}")
     return text
 
-# Function to split text into chunks
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
         separator="\n",
@@ -44,13 +46,12 @@ def get_text_chunks(text):
     chunks = text_splitter.split_text(text)
     return chunks
 
-# Function to create conversation chain
 def get_conversation_chain(vectorstore):
     llm = ChatGoogleGenerativeAI(model="gemini-1.0-pro", temperature=0.7)
     
     template = """You are a helpful AI assistant that helps users understand their PDF documents.
-    Use the following context to answer the question at the end.
-    If you don't know the answer, just say that you don't know.
+    Use the following pieces of context to answer the question at the end.
+    If you don't know the answer, just say that you don't know, don't try to make up an answer.
     
     {context}
     
@@ -72,16 +73,30 @@ def get_conversation_chain(vectorstore):
     )
     return conversation_chain
 
-# Function to process documents
 def process_docs(pdf_docs):
+    if not pdf_docs:
+        st.error("Please upload PDF files to begin.")
+        return False
+        
     try:
+        # Get PDF text
         raw_text = get_pdf_text(pdf_docs)
+        
+        # Get text chunks
         text_chunks = get_text_chunks(raw_text)
+        
+        # Create embeddings
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        
+        # Create vector store
         vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
+        
+        # Create conversation chain
         st.session_state.conversation = get_conversation_chain(vectorstore)
+        
         st.session_state.processComplete = True
         return True
+        
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         return False
@@ -96,7 +111,7 @@ with st.sidebar:
     )
     
     if st.button("Process") and pdf_docs:
-        with st.spinner("Processing..."):
+        with st.spinner("Processing your PDFs..."):
             success = process_docs(pdf_docs)
             if success:
                 st.success("Processing complete!")
@@ -120,3 +135,5 @@ if st.session_state.processComplete:
     for role, message in st.session_state.chat_history:
         with st.chat_message(role):
             st.write(message)
+else:
+    st.write("👈 Upload PDFs to begin chatting!")
