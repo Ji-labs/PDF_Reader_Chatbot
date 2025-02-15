@@ -1,0 +1,7 @@
+PyPDF2==3.0.1
+streamlit
+langchain
+langchain-google-genai
+langchain-community
+faiss-cpu
+tiktoken
