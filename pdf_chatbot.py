@@ -9,7 +9,6 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 import os
 
-# Set Google API key
 os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
 
 st.set_page_config(page_title="Chat with PDF", page_icon="📚")
@@ -31,33 +30,28 @@ def get_pdf_text(pdf_docs):
     return text
 
 def get_text_chunks(text):
-    text_splitter = CharacterTextSplitter(
-        separator="\n",
-        chunk_size=1000,
-        chunk_overlap=200,
-        length_function=len
-    )
-    chunks = text_splitter.split_text(text)
-    return chunks
+    text_splitter = CharacterTextSplitter(separator="\n", chunk_size=1000, chunk_overlap=200, length_function=len)
+    return text_splitter.split_text(text)
 
 def get_conversation_chain(vectorstore):
-    llm = ChatGoogleGenerativeAI(model="gemini-1.0-pro", temperature=0.7)
+    llm = ChatGoogleGenerativeAI(model="gemini-1.0-pro", temperature=0.9, top_p=0.95)
     prompt = PromptTemplate(
         input_variables=['context', 'question'],
         template="""You are a helpful AI assistant that helps users understand their PDF documents.
-        Use the following context to answer the question. If unsure, provide the best possible answer.
+        Use ALL available context to provide a comprehensive answer.
 
         {context}
 
         Question: {question}
-        Answer:"""
+        Comprehensive Answer:"""
     )
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
     conversation_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
-        retriever=vectorstore.as_retriever(),
+        retriever=retriever,
         memory=memory,
-        combine_docs_chain_kwargs={'prompt': prompt}
+        combine_docs_chain_kwargs={'prompt': prompt, 'max_tokens_limit': 4096}
     )
     return conversation_chain
 
@@ -89,14 +83,13 @@ if st.session_state.processComplete:
         try:
             with st.spinner("Thinking..."):
                 response = st.session_state.conversation({"question": user_question})
+                st.write("Retrieved Context:", response.get('source_documents', 'No context found'))
                 st.session_state.chat_history.append(("You", user_question))
                 st.session_state.chat_history.append(("Bot", response["answer"]))
         except Exception as e:
             st.error(f"Error: {str(e)}")
-
     for role, message in st.session_state.chat_history:
         with st.chat_message(role):
             st.write(message)
 else:
     st.write("👈 Upload PDFs to start chatting!")
-
