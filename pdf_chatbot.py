@@ -26,11 +26,14 @@ def get_pdf_text(pdf_docs):
     for pdf in pdf_docs:
         pdf_reader = PdfReader(pdf)
         for page in pdf_reader.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text
-            else:
-                st.warning("Some pages could not be read correctly.")
+            try:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text
+                else:
+                    st.warning("A page could not be read correctly.")
+            except Exception as e:
+                st.warning(f"Failed to read a page: {e}")
     return text
 
 def get_text_chunks(text):
@@ -69,6 +72,9 @@ def process_docs(pdf_docs):
             st.error("No text could be extracted from the uploaded PDFs.")
             return False
         text_chunks = get_text_chunks(raw_text)
+        if not text_chunks:
+            st.error("No chunks generated from the text.")
+            return False
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
         vectorstore = FAISS.from_texts(text_chunks, embedding=embeddings)
         st.session_state.conversation = get_conversation_chain(vectorstore)
