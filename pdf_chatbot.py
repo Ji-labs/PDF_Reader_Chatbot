@@ -9,7 +9,7 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 import os
 
-os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+os.environ["GOOGLE_API_KEY"] = st.secrets.get("GOOGLE_API_KEY", "")
 
 st.set_page_config(page_title="Chat with PDF", page_icon="📚")
 st.title("Chat with your PDF 📚")
@@ -26,7 +26,11 @@ def get_pdf_text(pdf_docs):
     for pdf in pdf_docs:
         pdf_reader = PdfReader(pdf)
         for page in pdf_reader.pages:
-            text += page.extract_text()
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text
+            else:
+                st.warning("Some pages could not be read correctly.")
     return text
 
 def get_text_chunks(text):
@@ -38,7 +42,7 @@ def get_conversation_chain(vectorstore):
     prompt = PromptTemplate(
         input_variables=['context', 'question'],
         template="""You are an AI assistant providing detailed answers from PDF documents.
-        Include all relevant context in your response, even if not explicitly asked. If context is insufficient, indicate what is missing.
+        Include all relevant context in your response. If no documents are provided, indicate that clearly.
 
         {context}
 
@@ -56,8 +60,14 @@ def get_conversation_chain(vectorstore):
     return conversation_chain
 
 def process_docs(pdf_docs):
+    if not pdf_docs:
+        st.error("No PDF documents provided. Please upload PDFs to proceed.")
+        return False
     try:
         raw_text = get_pdf_text(pdf_docs)
+        if not raw_text.strip():
+            st.error("No text could be extracted from the uploaded PDFs.")
+            return False
         text_chunks = get_text_chunks(raw_text)
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
         vectorstore = FAISS.from_texts(text_chunks, embedding=embeddings)
@@ -71,7 +81,7 @@ def process_docs(pdf_docs):
 with st.sidebar:
     st.subheader("Your Documents")
     pdf_docs = st.file_uploader("Upload PDFs", type="pdf", accept_multiple_files=True)
-    if st.button("Process") and pdf_docs:
+    if st.button("Process"):
         with st.spinner("Processing PDFs..."):
             if process_docs(pdf_docs):
                 st.success("Processing complete!")
