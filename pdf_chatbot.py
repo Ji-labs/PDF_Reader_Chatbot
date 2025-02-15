@@ -78,7 +78,7 @@ def process_docs(pdf_docs):
         text_chunks = get_text_chunks(raw_text)
         
         # Create embeddings
-        embeddings = GoogleGenerativeAIEmbeddings()
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
         
         # Create vector store using FAISS
         vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
