@@ -1,22 +1,19 @@
 import streamlit as st
 from PyPDF2 import PdfReader
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatDeepSeek
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.embeddings import DeepSeekEmbeddings
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 import os
 
-# Ensure API key is set
-if not os.getenv("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"] if "OPENAI_API_KEY" in st.secrets else st.text_input("Enter your OpenAI API Key:", type="password")
+os.environ["DEEPSEEK_API_KEY"] = st.secrets.get("DEEPSEEK_API_KEY", "")
 
 st.set_page_config(page_title="Chat with PDF", page_icon="📚")
 st.title("Chat with your PDF 📚")
 
-# Initialize session state variables
 if "conversation" not in st.session_state:
     st.session_state.conversation = None
 if "chat_history" not in st.session_state:
@@ -24,7 +21,6 @@ if "chat_history" not in st.session_state:
 if "processComplete" not in st.session_state:
     st.session_state.processComplete = None
 
-# PDF text extraction function
 def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
@@ -36,19 +32,17 @@ def get_pdf_text(pdf_docs):
             st.warning(f"Error reading PDF: {e}")
     return text
 
-# Split text into chunks
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(separator="\n", chunk_size=1500, chunk_overlap=300, length_function=len)
     return text_splitter.split_text(text)
 
-# Create conversation chain
 def get_conversation_chain(vectorstore):
-    llm = ChatOpenAI(model="gpt-4-turbo", temperature=0.5, openai_api_key=os.environ["OPENAI_API_KEY"])
-    prompt = PromptTemplate(input_variables=['context', 'question'], template="""You are an expert PDF assistant. Use the following context to answer questions accurately.\nProvide clear, concise responses. If unsure, say so.\n\n{context}\nQuestion: {question}\nAnswer:""")
+    llm = ChatDeepSeek(model="deepseek-chat", temperature=0.5)
+    template = """You are an expert PDF assistant. Use the following context to answer questions accurately.\nProvide clear, concise responses. If unsure, say so.\n\n{context}\nQuestion: {question}\nAnswer:"""
+    prompt = PromptTemplate(input_variables=['context', 'question'], template=template)
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
     return ConversationalRetrievalChain.from_llm(llm=llm, retriever=vectorstore.as_retriever(), memory=memory, combine_docs_chain_kwargs={'prompt': prompt})
 
-# Process uploaded PDFs
 def process_docs(pdf_docs):
     if not pdf_docs:
         st.error("Please upload PDF files to begin.")
@@ -56,7 +50,7 @@ def process_docs(pdf_docs):
     try:
         raw_text = get_pdf_text(pdf_docs)
         text_chunks = get_text_chunks(raw_text)
-        embeddings = OpenAIEmbeddings(openai_api_key=os.environ["OPENAI_API_KEY"])
+        embeddings = DeepSeekEmbeddings()
         vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
         st.session_state.conversation = get_conversation_chain(vectorstore)
         st.session_state.processComplete = True
@@ -65,7 +59,6 @@ def process_docs(pdf_docs):
         st.error(f"An error occurred: {str(e)}")
         return False
 
-# Sidebar for PDF upload
 with st.sidebar:
     st.subheader("Your Documents")
     pdf_docs = st.file_uploader("Upload your PDFs here", type="pdf", accept_multiple_files=True)
@@ -74,7 +67,6 @@ with st.sidebar:
             if process_docs(pdf_docs):
                 st.success("Processing complete!")
 
-# Main chat interface
 if st.session_state.processComplete:
     user_question = st.chat_input("Ask a question about your documents:")
     if user_question:
