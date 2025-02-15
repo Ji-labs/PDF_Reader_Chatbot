@@ -38,20 +38,20 @@ def get_conversation_chain(vectorstore):
     prompt = PromptTemplate(
         input_variables=['context', 'question'],
         template="""You are an AI assistant providing detailed answers from PDF documents.
-        Use all provided context to generate a comprehensive response. Include full relevant context unless instructed otherwise.
+        Include all relevant context in your response, even if not explicitly asked. If context is insufficient, indicate what is missing.
 
         {context}
 
         Question: {question}
-        Answer with full context:"""
+        Detailed Answer with Full Context:"""
     )
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 8})
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 8, "score_threshold": 0.5})
     conversation_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
         retriever=retriever,
         memory=memory,
-        combine_docs_chain_kwargs={'prompt': prompt}  # Removed unsupported max_tokens_limit
+        combine_docs_chain_kwargs={'prompt': prompt}
     )
     return conversation_chain
 
