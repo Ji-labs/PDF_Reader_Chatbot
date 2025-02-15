@@ -38,7 +38,7 @@ def get_text_chunks(text):
     return chunks
 
 def get_conversation_chain(vectorstore):
-    llm = ChatGoogleGenerativeAI(model="gemini-1.0-pro", temperature=0.5)
+    llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0.5)
     template = """You are an expert PDF assistant. Use the following context to answer questions accurately.
     Provide clear, concise responses. If unsure, say so.
 
