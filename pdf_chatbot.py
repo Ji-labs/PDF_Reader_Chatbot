@@ -10,7 +10,7 @@ from langchain.prompts import PromptTemplate
 import os
 
 # Set OpenAI API key from secrets
-os.environ["GOOGLE_API_KEY"] = "AIzaSyCxKCDxVCPWGYpPn74G-bJ1M0ZQ5nghZb4"
+os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
 
 # Page configuration
 st.set_page_config(page_title="Chat with PDF", page_icon="📚")
