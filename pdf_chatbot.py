@@ -1,15 +1,15 @@
 import streamlit as st
 from PyPDF2 import PdfReader
-from langchain_community.chat_models import ChatLlamaCpp
+from langchain_community.chat_models import ChatOpenAI
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import OpenAIEmbeddings
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 import os
 
-os.environ["LLAMA_CPP_API_KEY"] = st.secrets.get("LLAMA_CPP_API_KEY", "")
+os.environ["OPENAI_API_KEY"] = st.secrets.get("OPENAI_API_KEY", "")
 
 st.set_page_config(page_title="Chat with PDF", page_icon="📚")
 st.title("Chat with your PDF 📚")
@@ -37,7 +37,7 @@ def get_text_chunks(text):
     return text_splitter.split_text(text)
 
 def get_conversation_chain(vectorstore):
-    llm = ChatLlamaCpp(model_path="path_to_llama_model.bin", temperature=0.5)
+    llm = ChatOpenAI(model="gpt-4", temperature=0.5)
     template = """You are an expert PDF assistant. Use the following context to answer questions accurately.\nProvide clear, concise responses. If unsure, say so.\n\n{context}\nQuestion: {question}\nAnswer:"""
     prompt = PromptTemplate(input_variables=['context', 'question'], template=template)
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
@@ -50,7 +50,7 @@ def process_docs(pdf_docs):
     try:
         raw_text = get_pdf_text(pdf_docs)
         text_chunks = get_text_chunks(raw_text)
-        embeddings = HuggingFaceEmbeddings()
+        embeddings = OpenAIEmbeddings()
         vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
         st.session_state.conversation = get_conversation_chain(vectorstore)
         st.session_state.processComplete = True
